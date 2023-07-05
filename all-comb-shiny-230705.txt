@@ -1,0 +1,128 @@
+pacman::p_load(grid, MASS, DT, equivalence, dplyr, repr, scales, ggnewscale, ggplot2, gridExtra, 
+               reshape2, shiny, shinyjqui, shinyWidgets, shinythemes)
+
+load(file = paste0("D:\\CMCStat_OMG\\Analysis_R\\OC_230626\\all-comb-rep1000\\all-comb-merge.RData"))
+res = res_merge
+######## TEST 
+nseq = seq(4,30,by=2)
+seqq = seq(0,4,by=0.1)
+x1 = rep(seqq,length(seqq))
+x2 = rep(seqq,each =length(seqq))
+# M = c("Min-Max","QR(2SD)","QR(3SD)","TOST(1.5SD)","TOST(3SD)","TI(90conf/99prop)","TI(95conf/99prop)","PI99")
+######################################################################################
+######################################################################################
+
+runApp(shinyApp(
+  ui = fluidPage(
+    titlePanel("OC Simulation_MG-230630"), 
+    # tableOutput("output_table1"),
+    htmlOutput("title1"),
+    # htmlOutput("title2"),fluidRow( column(10, DTOutput("table"))),
+    fluidRow(
+      column(2, sliderInput("plotsize", "Plot Size :", step = 200,min = 2000, max = 4000, value = 3000)),
+      column(2, sliderInput("pointsize", "Point Size :", min = 1, max = 10, value = 3)),
+      column(2, sliderInput("fontsize", "Font Size :", min = 6, max = 12, value = 6))),
+    fluidRow(
+      column(2, sliderInput("thick", "Line Thickness :", step = 0.1,min = 0.5, max = 2, value = 0.7)),
+      column(2, sliderInput("yref", "FN (Y Axis):", step = 0.05, min = 0, max = 1, value = 0.05)),
+      column(2, sliderInput("xref", "FP (X Axis) :", step = 0.05,min = 0, max = 1, value = 0.05))),
+    fluidRow(
+      column(2, sliderInput("delta", "Delta :", step = 0.1, min = 0.1, max = 4, value = 3)),
+      column(2, sliderInput("sdr", "SD Ratio :", step = 0.1, min = 0.1, max = 4, value = 1)),
+      column(2, sliderInput("xlimit", "X Range :", step = 0.1, min = 0.1, max = 1, value = 1.0)),
+      column(2, sliderInput("ylimit", "Y Range :", step = 0.1, min = 0.1, max = 1, value = 1.0))),
+    htmlOutput("title0"),
+    div(style = "display: flex; flex-direction: row;", class = "checkbox-group",
+        tags$div(style = "margin-left: 20px;"),
+        fluidRow(
+          checkboxGroupInput("M_input", "Method(s):", choices = c(M), inline = TRUE, selected = c(M)),
+          checkboxGroupInput("ntest_input", "N Test:", choices = nseq, inline = TRUE, selected = nseq),
+          checkboxGroupInput("nref_input", "N Ref:", choices = nseq, inline = TRUE, selected = nseq) 
+        )
+    ), 
+    div(
+      style = "display: flex; flex-direction: row;",
+      checkboxInput("claascheck_server", "Equivalence Region", FALSE),
+      checkboxInput("check_server", "Check Yes/No", TRUE)
+    ),
+    helpText(HTML("- Delta = (μ<sub>Test</sub> - μ<sub>Ref</sub>) / σ<sub>Ref</sub> <br> - SD Ratio = σ<sub> Test</sub> / σ<sub>Ref</sub>")),
+    htmlOutput("formula_output"),
+    mainPanel( fluidRow( column(width=12,plotOutput("output_plot1"))))
+  )# ui close  
+  ,
+  ######################################################################################
+  server <- function(input, output) {
+    ################################################################################################## 
+    ################### Descriptions (title) #####################
+    output$title0 <- renderText({paste0("<span style='font-weight: bold;'> [ Select Options ]</span>","<br>","<br>")})
+    output$title1 <- renderText({paste0(
+      "<span style='font-weight: bold;'> [ 조건 ] </span>","<br>",
+      "- 평가방법마다 계산된 각 구간에 Test 데이터의 90% 이상이 포함되면 Accept로 판단. ","<br>",
+      "- Grid point 는 Delta, SD ratio 모두 0 ~ 4 내에서 0.1 단위로 계산함.","<br>",
+      " (각 좌표에서 1000번씩 시뮬레이션 한 결과를 평균 내어 Average False Acceptance Rate, Average False Rejection Rate 계산.)","<br>","<br>",
+      "<span style='font-weight: bold;'> [ 결과 ] </span>","<br>",
+      # "- Summary Table 색상: 사용자가 지정한 FP, FN 보다 작은 값 빨강/파랑 표시.","<br>",
+      "- Equivalence Region : 사용자가 지정한 Delta / SD Ratio 설정에 따라  정해짐.","<br>",
+      "- Simulation Results : 사용자가 지정한 FP(파랑 보조선), FN(빨강 보조선) 보다 작은 영역은 회색 표시.","<br>"
+      
+    )})
+    # output$title2 <- renderText({paste0("<span style='font-weight: bold;'> [ Summary Table ] </span>")})
+    ################################################################################################## 
+    ################### Similarity Condition #####################
+    output$formula_output <- renderText({
+      A <- input$delta
+      B <- input$sdr
+      AB <- A * B 
+      formula <- HTML(paste("μ<sub>Test</sub> +", A, "σ<sub>Test</sub> ≤ μ<sub>Ref</sub> +", AB, "σ<sub>Ref</sub> <br>"))
+      formula
+    })
+    ################################################################################################## 
+    ################################################################################################## 
+    ################### p1 : Classification plot , p2 : Simulation results
+    output$output_plot1 = renderPlot({
+      options(repr.plot.width = 14, repr.plot.height = 20)
+      filtered_matrix <- reactive({
+        res <- res[, , input$M_input, input$nref_input, input$ntest_input]
+        res
+      })
+      if(input$check_server == 1){
+        p2 = reactive({ myfun_check_yes(input$delta, input$sdr, input$M_input,
+                                        input$nref_input, input$ntest_input,
+                                        input$pointsize, input$fontsize, input$xref, input$yref,
+                                        input$thick, input$xlimit, input$ylimit)})
+      }else{
+        p2 =  reactive({myfun_check_yes(input$delta, input$sdr, input$M_input,
+                                        input$nref_input, input$ntest_input,
+                                        input$pointsize, input$fontsize, input$xref, input$yref,
+                                        input$thick, input$xlimit, input$ylimit)})}
+      p2_filtered <- p2()
+      
+      if (input$claascheck_server == 1) {
+        p1 <- myfun_class(input$delta, input$sdr)
+        grid.arrange(p1, p2_filtered, ncol = 2, widths = c(1, 1))
+      } else {
+        p2_filtered <- p2_filtered + theme(plot.margin = margin(0, 0, 0, 0, "cm"))
+        p2_filtered
+      }
+    }, width = function() {
+      if (input$claascheck_server == 0) {
+        input$plotsize / 4
+      } else {
+        input$plotsize / 2
+      }
+    }, height = function() input$plotsize / 4)
+    ################################################################################################## 
+    ################################################################################################## 
+    ################### Select Data - Summary Table
+    # data <- reactiveVal(matrix(nrow = 0, ncol = 6))
+    # observeEvent(input$runButton, { 
+    #   data(myfun_summary_filtered(input$delta, input$sdr, input$M_input, input$nref_input, input$ntest_input))
+    # })
+    # output$output_table1 <- renderTable({
+    #   req(input$runButton)
+    #   data()
+    # })
+    ################################################################################################## 
+  }# server close  
+))# Run the Shiny app
+

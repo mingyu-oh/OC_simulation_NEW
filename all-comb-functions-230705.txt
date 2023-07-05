@@ -1,0 +1,256 @@
+######################################################################
+######################################################################
+####################### myfun_summary_filtered #######################
+######################################################################
+######################################################################
+# myfun_summary_filtered = function(Delta, SDRatio, M_filtered, nref_filtered, ntest_filtered){ 
+#   seqq = seq(0,4,by=0.1)
+#   class_mat = matrix(0,41,41)
+#   for(mi in seq_along(seqq)){
+#     for(sdi in seq_along(seqq)){
+#       class_mat[mi,sdi] = (SDRatio/Delta)*seqq[mi]+seqq[sdi] <= SDRatio
+#     }}
+#   
+#   ff = as.data.frame(matrix(NA,length(M_filtered)*length(nref_filtered)*length(ntest_filtered),2,byrow=T))
+#   colnames(ff) = c("FN","FP")
+#   ff$method = M_filtered
+#   ff$nRef = rep(nref_filtered,each=length(M_filtered)*length(ntest_filtered))
+#   ff$nTest = rep(ntest_filtered,each=length(M_filtered))
+#   ff$nRnT = paste(paste0("R",ff$nRef),paste0("T",ff$nTest))
+#   
+#   
+#   f = as.data.frame(matrix(NA,length(M_filtered),2,byrow=T))
+#   for(nr in seq_along(nref_filtered)){
+#     for(nt in seq_along(ntest_filtered)){
+#       for(i in seq_along(M_filtered)){
+#         f[i,1] = mean(c(1-res_filtered[,,i,nr,nt])[c(class_mat)==1])
+#         f[i,2] = mean(c(res_filtered[,,i,nr,nt])[c(class_mat)==0])
+#       }
+#       start = 1+length(M_filtered)*(nr-1)+length(M_filtered)*length(nref_filtered)*(nt-1)
+#       ff[start:(start+length(M_filtered)-1),1:2] = f
+#     }}
+#   ###############  ###############
+#   output_list = list()
+#   for (mm in M_filtered) {
+#     d = ff[ff$method == mm,]
+#     colnames(d)[4] = paste0(mm)
+#     output_list[[as.character(mm)]] = d
+#   }
+#   
+#   for (i in seq_along(M_filtered)) d[[i]] = output_list[[as.character(M_filtered[i])]]
+#   for (i in seq_along(M_filtered)) assign(paste0("d", i), d[[i]])
+#   
+#   nrow_tmp = length(nref_filtered)*length(ntest_filtered)
+#   res_tab = matrix(NA,length(M_filtered)*nrow_tmp,ncol=6,byrow=T)
+#   
+#   ###########  ###############
+#   for(mm in seq_along(M_filtered)){
+#     for(nr in seq_along(nref_filtered)){ #nRef
+#       for(nt in seq_along(ntest_filtered)){ #nTest
+#         di = mget(paste0("d",mm))[[1]]
+#         res_tab[1+((mm-1)*nrow_tmp):(mm*nrow_tmp-1),1] = round(di[order(di[,1]),1],3)
+#         res_tab[1+((mm-1)*nrow_tmp):(mm*nrow_tmp-1),2] = di[order(di[,1]),5]
+#         res_tab[1+((mm-1)*nrow_tmp):(mm*nrow_tmp-1),3] = di[order(di[,1]),4]
+#         res_tab[1+((mm-1)*nrow_tmp):(mm*nrow_tmp-1),4] = round(di[order(di[,2]),2],3)
+#         res_tab[1+((mm-1)*nrow_tmp):(mm*nrow_tmp-1),5] = di[order(di[,2]),5]
+#         res_tab[1+((mm-1)*nrow_tmp):(mm*nrow_tmp-1),6] = di[order(di[,2]),4]
+#       }}}
+#   
+#   rname = paste(rep(M_filtered,each=length(nref_filtered)*length(ntest_filtered)),rep(1:(length(nref_filtered)*length(ntest_filtered)),length(M_filtered)))
+#   colnames(res_tab) = c("FN","FN_T","FN_R","FP","FP_T","FP_R")
+#   rownames(res_tab) = rname
+#   return(res_tab)
+# }
+
+######################################################################
+######################################################################
+################### Classification plot ##############################
+######################################################################
+######################################################################
+myfun_class = function(Delta, SDRatio){ 
+  
+  a1 = SDRatio;a2 = Delta;a3 = a1*a2;
+  a0 = round(a1/a2,2);
+  a5 = NULL
+  if(a0 == 1){a5 = NULL}else{a5 = a0}
+  
+  yhat = (a1-a0*x1)
+  yhat[which(yhat<0)] = 0
+  #   "\n(μ_Test + ", A, "σ_Test) ≤ (μ_Ref + ", AB, "σ_Ref)"
+  # ) 
+  tit = paste0("Classification Plot :
+    y = - ",a5," x + ",a1)
+  # tit = expression( (mu[Test] + a2 * sigma[Test]) <= (mu[Ref] + a3 * sigma[Ref]))
+  
+  df= data.frame(x=x1,y=x2,yhat=yhat)
+  pp = ggplot(df) + 
+    geom_point(aes(x, y, color= I(ifelse(-(a1/a2)*x1 + a1 < x2,'red','blue'))))+
+    scale_x_continuous(breaks=seq(0,4,by=0.5)) +
+    scale_y_continuous(breaks=seq(0,4,by=0.5)) +
+    geom_ribbon(aes(x = x, ymin = 0, ymax = yhat, fill='red'), alpha=0.4,show.legend = F)+
+    geom_ribbon(aes(x = x, ymin = yhat, ymax = 4, fill='blue'), alpha=0.4,show.legend = F)+
+    geom_hline(yintercept=0,color="black")+
+    geom_vline(xintercept=0,color="black")+
+    geom_abline(intercept= a1, slope=-a1/a2, color='black', size = 1.5)+
+    theme(plot.margin=unit(c(2,2,2,2),"cm"), plot.title = element_text(size = 20),
+          axis.text.x = element_text(size = 13),
+          axis.text.y = element_text(size = 13),
+          axis.title.x = element_text(size = 15), 
+          axis.title.y = element_text(size = 15))+
+    labs(title=tit,x ="Delta", y = "SD Ratio")
+  return(pp)
+} 
+
+
+##############################################################
+##############################################################
+################### Check - Yes ##############################
+##############################################################
+##############################################################
+myfun_check_yes = function(Delta, SDRatio, M_filtered, nref_filtered, ntest_filtered, PointSize, FontSize, xref, yref, Thick, xlimit, ylimit){
+  
+  
+  
+  dimnames(res) = list(dimnames1 = seqq, dimnames2 = seqq, dimnames3 = M,
+                       dimnames4 = nseq,  dimnames5 = nseq)
+  
+  res_filtered = res[, , M_filtered, as.character(nref_filtered), as.character(ntest_filtered)]
+  
+  seqq = seq(0,4,by=0.1)
+  class_mat = matrix(0,41,41)
+  for(mi in seq_along(seqq)){
+    for(sdi in seq_along(seqq)){
+      class_mat[mi,sdi] = (SDRatio/Delta)*seqq[mi]+seqq[sdi] <= SDRatio
+    }}
+  
+  ff = as.data.frame(matrix(NA,length(M_filtered)*length(nref_filtered)*length(ntest_filtered),2,byrow=T))
+  colnames(ff) = c("FN","FP")
+  ff$method = M_filtered
+  ff$nRef = rep(nref_filtered,each=length(M_filtered)*length(ntest_filtered))
+  ff$nTest = rep(ntest_filtered,each=length(M_filtered))
+  ff$nRnT = paste(paste0("R",ff$nRef),paste0("T",ff$nTest))
+  
+  
+  f = as.data.frame(matrix(NA,length(M_filtered),2,byrow=T))
+  for(nr in seq_along(nref_filtered)){
+    for(nt in seq_along(ntest_filtered)){
+      for(i in seq_along(M_filtered)){
+        f[i,1] = mean(c(1-res_filtered[,,i,nr,nt])[c(class_mat)==1])
+        f[i,2] = mean(c(res_filtered[,,i,nr,nt])[c(class_mat)==0])
+      }
+      start = 1+length(M_filtered)*(nr-1)+length(M_filtered)*length(nref_filtered)*(nt-1)
+      ff[start:(start+length(M_filtered)-1),1:2] = f
+    }}
+  ############### define d dataset for each method ###############
+  output_list = list()
+  for (mm in M_filtered) {
+    d = ff[ff$method == mm,]
+    colnames(d)[4] = paste0(mm)
+    output_list[[as.character(mm)]] = d
+  }
+  
+  for (i in seq_along(M_filtered)) d[[i]] = output_list[[as.character(M_filtered[i])]]
+  for (i in seq_along(M_filtered)) assign(paste0("d", i), d[[i]])
+  
+  ############### output plot 
+  col_list <- list(
+    c("#BFEFFF", "#002C5F"),    # Light Blue to Dark Blue
+    c("#B7FFC4", "#005A3C"),    # Light Green to Dark Green
+    c("#FFFF99", "#B38800"),    # Light Yellow to Dark Yellow
+    c("#FFD9B3", "#E65100"),    # Light Orange to Dark Orange
+    c("#FFB3B3", "#5A0000"),    # Light Red to Dark Red
+    c("#E6CCFF", "#330066"),    # Light Purple to Dark Purple
+    c("#FFB3D1", "#CC0066"),    # Light Pink to Dark Pink
+    c("#EBEBEB", "#222222")     # Light Gray to Dark Gray
+  )
+  ########################
+  
+  # M_filtered[which(M_filtered=="Minmax")] = "Min-Max"
+  # M_filtered[which(M_filtered=="QR2")] = "QR(2SD)"
+  # M_filtered[which(M_filtered=="QR3")] = "QR(3SD)"
+  # M_filtered[which(M_filtered=="TOST1.5")] = "TOST(1.5SD)"
+  # M_filtered[which(M_filtered=="TOST3")] = "TOST(3SD)"
+  # M_filtered[which(M_filtered=="TI9099")] = "TI(90conf/99prop)"
+  # M_filtered[which(M_filtered=="TI9599")] = "TI(95conf/99prop)"
+  names(output_list) = M_filtered
+  
+  rect_df = data.frame(xmin = 0, xmax = xref, ymin = 0, ymax = yref)
+  
+  p = ggplot()+ 
+    geom_rect(data = rect_df, fill = "lightgray", alpha = 0.5,
+              aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax))+
+    geom_vline(xintercept = 0, size = 1.2)+
+    geom_hline(yintercept = 0, size = 1.2)+
+    geom_vline(xintercept = xref, color='blue', size = Thick)+
+    geom_hline(yintercept = yref, color='red', size = Thick)+
+    labs(x = 'Average False Acceptance Rate (FP)',
+         y = 'Average False Rejection Rate (FN)',       
+         title = paste('Simulation Results (Brightness of the colors depend on N Ref.) :')) +
+    
+    coord_cartesian(xlim = c(0, xlimit), ylim = c(0, ylimit))+
+    theme_bw()+
+    
+    theme(plot.margin=unit(c(2,2,2,2),"cm"), plot.title = element_text(size = 20),
+          axis.text.x = element_text(size = FontSize+4),
+          axis.text.y = element_text(size = FontSize+4),
+          axis.title.x = element_text(size = FontSize+7), 
+          axis.title.y = element_text(size = FontSize+7)) 
+  
+  for (i in 1:length(output_list)) {
+    dtmp = output_list[[i]] 
+    dtmp[,3] = names(output_list)[[i]]
+    col_comb = NA
+    
+    # if (names(output_list[i]) == "Min-Max") {
+    #   col_comb = c("#BFEFFF", "#002C5F")
+    # } else if (names(output_list[i]) == "QR(2SD)") {
+    #   col_comb = c("#B7FFC4", "#005A3C")
+    # } else if (names(output_list[i]) == "QR(3SD)") {
+    #   col_comb = c("#FFFF99", "#B38800")
+    # } else if (names(output_list[i]) == "TOST(1.5SD)") {
+    #   col_comb = c("#FFD9B3", "#E65100")
+    # } else if (names(output_list[i]) == "TOST(3SD)") {
+    #   col_comb = c("#FFB3B3", "#5A0000")
+    # } else if (names(output_list[i]) == "TI(90conf/99prop)") {
+    #   col_comb = c("#E6CCFF", "#330066")
+    # } else if (names(output_list[i]) == "TI(95conf/99prop)") {
+    #   col_comb = c("#FFB3D1", "#CC0066")
+    # } else if (names(output_list[i]) == "PI99") {
+    #   col_comb = c("#EBEBEB", "#222222")
+    # }
+    
+    if (names(output_list[i]) == "Minmax") {
+      col_comb = c("#BFEFFF", "#002C5F")
+    } else if (names(output_list[i]) == "QR2") {
+      col_comb = c("#B7FFC4", "#005A3C")
+    } else if (names(output_list[i]) == "QR3") {
+      col_comb = c("#FFFF99", "#B38800")
+    } else if (names(output_list[i]) == "TOST1.5") {
+      col_comb = c("#FFD9B3", "#E65100")
+    } else if (names(output_list[i]) == "TOST3") {
+      col_comb = c("#FFB3B3", "#5A0000")
+    } else if (names(output_list[i]) == "TI9099") {
+      col_comb = c("#E6CCFF", "#330066")
+    } else if (names(output_list[i]) == "TI9599") {
+      col_comb = c("#FFB3D1", "#CC0066")
+    } else if (names(output_list[i]) == "PI99") {
+      col_comb = c("#EBEBEB", "#222222")
+    }
+    
+    col_comb1 <- as.factor(col_comb[1])[1]
+    col_comb2 <- as.factor(col_comb[2])[1]
+    p = p + 
+      # geom_text(data = dtmp, aes(x = FP + 0.02, y = FN * 1.01, label = nRnT), size = FontSize) +
+      geom_point(data = dtmp, aes(x = FP, y = FN, color = as.numeric(dtmp[,4])), size = PointSize) +
+      annotate("text", x = max(dtmp$FP), y = mean(dtmp$FN), label = unique(dtmp[,3]), size = 5) +
+      scale_color_gradient(low = col_comb1, high = col_comb2, guide = guide_colorbar(direction = "horizontal",title = unique(dtmp[,3]),barheight=1,title.position = "top")) +
+      
+      new_scale_color()
+    
+  }
+  comment1 = textGrob("   * FAR ,False Acceptance Rate: Rate of passing equivalence, but not actually equivalence (within the non-equivalence region).",x = 0, y = 0, just = "left", gp = gpar(fontsize = 12))
+  comment2 = textGrob("   * FRR ,False Rejection Rate: Ratio that is actually equivalent (within the equivalence region) but fails to pass equivalence.",x = 0, y = 0, just = "left", gp = gpar(fontsize = 12))
+  comment3 = textGrob("")
+  pp = grid.arrange(p, comment1, comment2, comment3, nrow = 4, heights = c(2, 0.0001, 0.1,0.1))  
+  return(pp)
+}
